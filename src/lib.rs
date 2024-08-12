@@ -2,8 +2,8 @@
 
 pub mod instruction;
 use crate::instruction::Instruction;
-use core::convert::Infallible;
-use embedded_hal::digital::OutputPin;
+use core::{convert::Infallible, mem::MaybeUninit};
+use embedded_hal::{digital::OutputPin, spi::Operation};
 use embedded_hal_async::delay::DelayNs;
 use embedded_hal_async::spi::SpiDevice;
 
@@ -270,6 +270,38 @@ where
         self.write_command(Instruction::RAMWR, &[]).await?;
         self.start_data()?;
         self.spi.write(&frame.buffer).await.map_err(Error::Comm)
+    }
+
+    pub async fn flush_lines(
+        &mut self,
+        lines: impl Iterator<Item = &[u8]>,
+        sx: u16,
+        sy: u16,
+    ) -> Result<(), Error<E>> {
+        let buf = MaybeUninit::<[Operation<u8>; 128]>::uninit();
+        let (height, width, mut operations) = unsafe {
+            let mut buf = buf.assume_init();
+            let mut height = 0;
+            let mut width = 0;
+            buf.iter_mut().zip(lines).for_each(|(buf, line)| {
+                *buf = Operation::Write(line);
+                height += 1;
+                width = (line.len() / 2) as u16;
+            });
+            if height == 0 {
+                return Ok(());
+            }
+            (height, width, buf)
+        };
+        self.set_address_window(sx, sy, sx + width - 1, sy + height - 1)
+            .await?;
+        self.write_command(Instruction::RAMWR, &[]).await?;
+        self.start_data()?;
+
+        self.spi
+            .transaction(&mut operations[..height as usize])
+            .await
+            .map_err(Error::Comm)
     }
 }
 
