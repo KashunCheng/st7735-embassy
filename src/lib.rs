@@ -7,8 +7,8 @@ use embedded_hal::digital::OutputPin;
 use embedded_hal_async::delay::DelayNs;
 use embedded_hal_async::spi::SpiDevice;
 
-/// 128px x 160px screen with 16 bits (2 bytes) per pixel
-const BUF_SIZE: usize = 128 * 160 * 2;
+/// 128px x 128px screen with 16 bits (2 bytes) per pixel
+const BUF_SIZE: usize = 128 * 128 * 2;
 
 /// Async ST7735 LCD display driver.
 pub struct ST7735IF<SPI, DC, RST>
@@ -54,9 +54,11 @@ pub enum Orientation {
 }
 
 pub struct Config {
-    rgb: bool,
-    inverted: bool,
-    orientation: Orientation,
+    pub rgb: bool,
+    pub inverted: bool,
+    pub orientation: Orientation,
+    pub dx: u16,
+    pub dy: u16,
 }
 
 impl Default for Config {
@@ -65,6 +67,8 @@ impl Default for Config {
             rgb: true,
             inverted: false,
             orientation: Orientation::Landscape,
+            dx: 0,
+            dy: 0,
         }
     }
 }
@@ -84,8 +88,8 @@ where
             rgb: config.rgb,
             inverted: config.inverted,
             orientation: config.orientation,
-            dx: 0,
-            dy: 0,
+            dx: config.dx,
+            dy: config.dy,
         }
     }
 
@@ -458,7 +462,7 @@ impl<const N: usize> Frame<N> {
 impl<const N: usize> Default for Frame<N> {
     fn default() -> Self {
         Self {
-            width: 160,
+            width: 128,
             height: 128,
             orientation: Orientation::Landscape,
             buffer: [0; N],
